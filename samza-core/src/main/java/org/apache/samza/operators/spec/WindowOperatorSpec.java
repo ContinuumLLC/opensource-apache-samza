@@ -1,0 +1,140 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.apache.samza.operators.spec;
+
+import org.apache.samza.operators.MessageStreamImpl;
+import org.apache.samza.operators.triggers.AnyTrigger;
+import org.apache.samza.operators.triggers.RepeatingTrigger;
+import org.apache.samza.operators.triggers.TimeBasedTrigger;
+import org.apache.samza.operators.triggers.Trigger;
+import org.apache.samza.operators.util.MathUtils;
+import org.apache.samza.operators.util.OperatorJsonUtils;
+import org.apache.samza.operators.windows.WindowPane;
+import org.apache.samza.operators.windows.internal.WindowInternal;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+
+/**
+ * Default window operator spec object
+ *
+ * @param <M>  the type of input message to the window
+ * @param <WK>  the type of key of the window
+ * @param <WV>  the type of aggregated value in the window output {@link WindowPane}
+ */
+public class WindowOperatorSpec<M, WK, WV> implements OperatorSpec<WindowPane<WK, WV>> {
+
+  private static final Logger LOG = LoggerFactory.getLogger(WindowOperatorSpec.class);
+  private final WindowInternal<M, WK, WV> window;
+  private final MessageStreamImpl<WindowPane<WK, WV>> nextStream;
+  private final int opId;
+  private final String sourceLocation;
+
+  /**
+   * Constructor for {@link WindowOperatorSpec}.
+   *
+   * @param window  the window function
+   * @param nextStream  the output {@link MessageStreamImpl} containing the messages produced from this operator
+   * @param opId  auto-generated unique ID of this operator
+   */
+  WindowOperatorSpec(WindowInternal<M, WK, WV> window, MessageStreamImpl<WindowPane<WK, WV>> nextStream, int opId) {
+    this.nextStream = nextStream;
+    this.window = window;
+    this.opId = opId;
+    this.sourceLocation = OperatorJsonUtils.getSourceLocation();
+  }
+
+  @Override
+  public MessageStreamImpl<WindowPane<WK, WV>> getNextStream() {
+    return this.nextStream;
+  }
+
+  public WindowInternal<M, WK, WV> getWindow() {
+    return window;
+  }
+
+  @Override
+  public OpCode getOpCode() {
+    return OpCode.WINDOW;
+  }
+
+  @Override
+  public int getOpId() {
+    return this.opId;
+  }
+
+  @Override
+  public String getSourceLocation() {
+    return sourceLocation;
+  }
+
+  /**
+   * Get the default triggering interval for this {@link WindowOperatorSpec}
+   *
+   * This is defined as the GCD of all triggering intervals across all {@link TimeBasedTrigger}s configured for
+   * this {@link WindowOperatorSpec}.
+   *
+   * @return the default triggering interval
+   */
+  public long getDefaultTriggerMs() {
+    List<TimeBasedTrigger> timerTriggers = new ArrayList<>();
+
+    if (window.getDefaultTrigger() != null) {
+      timerTriggers.addAll(getTimeBasedTriggers(window.getDefaultTrigger()));
+    }
+    if (window.getEarlyTrigger() != null) {
+      timerTriggers.addAll(getTimeBasedTriggers(window.getEarlyTrigger()));
+    }
+    if (window.getLateTrigger() != null) {
+      timerTriggers.addAll(getTimeBasedTriggers(window.getLateTrigger()));
+    }
+
+    LOG.info("Got {} timer triggers", timerTriggers.size());
+
+    List<Long> candidateDurations = timerTriggers.stream()
+        .map(timeBasedTrigger -> timeBasedTrigger.getDuration().toMillis())
+        .collect(Collectors.toList());
+
+    return MathUtils.gcd(candidateDurations);
+  }
+
+  private List<TimeBasedTrigger> getTimeBasedTriggers(Trigger rootTrigger) {
+    List<TimeBasedTrigger> timeBasedTriggers = new ArrayList<>();
+    // traverse all triggers in the graph starting at the root trigger
+    if (rootTrigger instanceof TimeBasedTrigger) {
+      timeBasedTriggers.add((TimeBasedTrigger) rootTrigger);
+    } else if (rootTrigger instanceof RepeatingTrigger) {
+      // recurse on the underlying trigger
+      timeBasedTriggers.addAll(getTimeBasedTriggers(((RepeatingTrigger) rootTrigger).getTrigger()));
+    } else if (rootTrigger instanceof AnyTrigger) {
+      List<Trigger> subTriggers = ((AnyTrigger) rootTrigger).getTriggers();
+
+      for (Trigger subTrigger: subTriggers) {
+        // recurse on each sub-trigger
+        timeBasedTriggers.addAll(getTimeBasedTriggers(subTrigger));
+      }
+    }
+    return timeBasedTriggers;
+  }
+}
