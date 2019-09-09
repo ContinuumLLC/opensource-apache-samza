@@ -35,16 +35,18 @@ import org.apache.samza.util.Util
  */
 class CoordinatorStreamSystemFactory {
   def getCoordinatorStreamSystemConsumer(config: Config, registry: MetricsRegistry) = {
+    val jobNameWithId = Util.getJobNameWithId(config)
     val (coordinatorSystemStream, systemFactory) = Util.getCoordinatorSystemStreamAndFactory(config)
     val systemAdmin = systemFactory.getAdmin(coordinatorSystemStream.getSystem, config)
     val systemConsumer = systemFactory.getConsumer(coordinatorSystemStream.getSystem, config, registry)
-    new CoordinatorStreamSystemConsumer(coordinatorSystemStream, systemConsumer, systemAdmin)
+    new CoordinatorStreamSystemConsumer(coordinatorSystemStream, systemConsumer, systemAdmin, jobNameWithId)
   }
 
   def getCoordinatorStreamSystemProducer(config: Config, registry: MetricsRegistry) = {
+    val jobNameWithId = Util.getJobNameWithId(config)
     val (coordinatorSystemStream, systemFactory) = Util.getCoordinatorSystemStreamAndFactory(config)
     val systemAdmin = systemFactory.getAdmin(coordinatorSystemStream.getSystem, config)
     val systemProducer = systemFactory.getProducer(coordinatorSystemStream.getSystem, config, registry)
-    new CoordinatorStreamSystemProducer(coordinatorSystemStream, systemProducer, systemAdmin)
+    new CoordinatorStreamSystemProducer(coordinatorSystemStream, systemProducer, systemAdmin, jobNameWithId)
   }
 }

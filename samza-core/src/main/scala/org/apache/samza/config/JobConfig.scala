@@ -42,6 +42,7 @@ object JobConfig {
   val SAMZA_FWK_PATH = "samza.fwk.path"
   val SAMZA_FWK_VERSION = "samza.fwk.version"
   val JOB_COORDINATOR_SYSTEM = "job.coordinator.system"
+  val JOB_COORDINATOR_TOPIC = "job.coordinator.topic"
   val JOB_DEFAULT_SYSTEM = "job.default.system"
   val JOB_CONTAINER_COUNT = "job.container.count"
   val JOB_CONTAINER_THREAD_POOL_SIZE = "job.container.thread.pool.size"
@@ -111,6 +112,14 @@ class JobConfig(config: Config) extends ScalaMapConfig(config) with Logging {
     system
   }
 
+  def getCoordinatorTopicName = {
+    val topic = getCoordinatorTopicNameOrNull
+    if (topic == null) {
+      throw new ConfigException("Missing job.coordinator.topic configuration. Cannot proceed with job execution.")
+    }
+    topic
+  }
+
   /**
     * Gets the System to use for reading/writing the coordinator stream. Uses the following precedence.
     *
@@ -119,6 +128,8 @@ class JobConfig(config: Config) extends ScalaMapConfig(config) with Logging {
     * 3. None
     */
   def getCoordinatorSystemNameOrNull =  getOption(JobConfig.JOB_COORDINATOR_SYSTEM).getOrElse(getDefaultSystem.orNull)
+
+  def getCoordinatorTopicNameOrNull =  getOption(JobConfig.JOB_COORDINATOR_TOPIC).orNull
 
   def getDefaultSystem = getOption(JobConfig.JOB_DEFAULT_SYSTEM)
 

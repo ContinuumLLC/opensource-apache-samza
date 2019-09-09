@@ -19,6 +19,7 @@
 
 package org.apache.samza.coordinator.stream;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -57,24 +58,27 @@ public class CoordinatorStreamSystemConsumer {
   private final SystemStreamPartition coordinatorSystemStreamPartition;
   private final SystemConsumer systemConsumer;
   private final SystemAdmin systemAdmin;
+  private final String jobNameWithId;
   private final Map<String, String> configMap;
   private volatile boolean isStarted;
   private volatile boolean isBootstrapped;
   private final Object bootstrapLock = new Object();
   private volatile Set<CoordinatorStreamMessage> bootstrappedStreamSet = Collections.emptySet();
 
-  public CoordinatorStreamSystemConsumer(SystemStream coordinatorSystemStream, SystemConsumer systemConsumer, SystemAdmin systemAdmin, Serde<List<?>> keySerde, Serde<Map<String, Object>> messageSerde) {
+  public CoordinatorStreamSystemConsumer(SystemStream coordinatorSystemStream, SystemConsumer systemConsumer, SystemAdmin systemAdmin, String jobNameWithId, Serde<List<?>> keySerde, Serde<Map<String, Object>> messageSerde) {
+    log.info("CoordinatorStreamSystemConsumer [FORK] created for: " + jobNameWithId);
     this.coordinatorSystemStreamPartition = new SystemStreamPartition(coordinatorSystemStream, new Partition(0));
     this.systemConsumer = systemConsumer;
     this.systemAdmin = systemAdmin;
+    this.jobNameWithId = jobNameWithId;
     this.configMap = new HashMap();
     this.isBootstrapped = false;
     this.keySerde = keySerde;
     this.messageSerde = messageSerde;
   }
 
-  public CoordinatorStreamSystemConsumer(SystemStream coordinatorSystemStream, SystemConsumer systemConsumer, SystemAdmin systemAdmin) {
-    this(coordinatorSystemStream, systemConsumer, systemAdmin, new JsonSerde<List<?>>(), new JsonSerde<Map<String, Object>>());
+  public CoordinatorStreamSystemConsumer(SystemStream coordinatorSystemStream, SystemConsumer systemConsumer, SystemAdmin systemAdmin, String jobNameWithId) {
+    this(coordinatorSystemStream, systemConsumer, systemAdmin, jobNameWithId, new JsonSerde<List<?>>(), new JsonSerde<Map<String, Object>>());
   }
 
   /**
@@ -153,11 +157,15 @@ public class CoordinatorStreamSystemConsumer {
         while (iterator.hasNext()) {
           IncomingMessageEnvelope envelope = iterator.next();
           Object[] keyArray = keySerde.fromBytes((byte[]) envelope.getKey()).toArray();
+          if (!processKey(keyArray)) {
+            continue;
+          }
+          Object[] newKeyArray = dropJobID(keyArray);
           Map<String, Object> valueMap = null;
           if (envelope.getMessage() != null) {
             valueMap = messageSerde.fromBytes((byte[]) envelope.getMessage());
           }
-          CoordinatorStreamMessage coordinatorStreamMessage = new CoordinatorStreamMessage(keyArray, valueMap);
+          CoordinatorStreamMessage coordinatorStreamMessage = new CoordinatorStreamMessage(newKeyArray, valueMap);
           log.debug("Received coordinator stream message: {}", coordinatorStreamMessage);
           // Remove any existing entry. Set.add() does not add if the element already exists.
           if (bootstrappedMessages.remove(coordinatorStreamMessage)) {
@@ -248,11 +256,15 @@ public class CoordinatorStreamSystemConsumer {
     while (iterator.hasNext()) {
       IncomingMessageEnvelope envelope = iterator.next();
       Object[] keyArray = keySerde.fromBytes((byte[]) envelope.getKey()).toArray();
+      if (!processKey(keyArray)) {
+        continue;
+      }
+      Object[] newKeyArray = dropJobID(keyArray);
       Map<String, Object> valueMap = null;
       if (envelope.getMessage() != null) {
         valueMap = messageSerde.fromBytes((byte[]) envelope.getMessage());
       }
-      CoordinatorStreamMessage coordinatorStreamMessage = new CoordinatorStreamMessage(keyArray, valueMap);
+      CoordinatorStreamMessage coordinatorStreamMessage = new CoordinatorStreamMessage(newKeyArray, valueMap);
       if (type == null || type.equals(coordinatorStreamMessage.getType())) {
         messages.add(coordinatorStreamMessage);
       }
@@ -273,4 +285,20 @@ public class CoordinatorStreamSystemConsumer {
     return iterator.hasNext();
   }
 
+  private boolean processKey(Object[] keyArray) {
+    if (keyArray.length==0) {
+      log.warn("jobID absent at received message");
+      return false;
+    }
+    if (!(keyArray[0] instanceof String)) {
+      log.warn("jobID is not a String: " + keyArray[0]);
+      return false;
+    }
+    String jobID = (String)keyArray[0];
+    return jobID.equals(jobNameWithId);
+  }
+
+  protected static Object[] dropJobID(Object[] keyArray) {
+    return Arrays.copyOfRange(keyArray, 1, keyArray.length);
+  }
 }

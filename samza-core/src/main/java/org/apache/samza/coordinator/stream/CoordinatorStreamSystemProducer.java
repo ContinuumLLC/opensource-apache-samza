@@ -19,6 +19,7 @@
 
 package org.apache.samza.coordinator.stream;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -48,16 +49,19 @@ public class CoordinatorStreamSystemProducer {
   private final SystemStream systemStream;
   private final SystemProducer systemProducer;
   private final SystemAdmin systemAdmin;
+  private final String jobNameWithId;
   private boolean isStarted;
 
-  public CoordinatorStreamSystemProducer(SystemStream systemStream, SystemProducer systemProducer, SystemAdmin systemAdmin) {
-    this(systemStream, systemProducer, systemAdmin, new JsonSerde<List<?>>(), new JsonSerde<Map<String, Object>>());
+  public CoordinatorStreamSystemProducer(SystemStream systemStream, SystemProducer systemProducer, SystemAdmin systemAdmin, String jobNameWithId) {
+    this(systemStream, systemProducer, systemAdmin, jobNameWithId, new JsonSerde<List<?>>(), new JsonSerde<Map<String, Object>>());
   }
 
-  public CoordinatorStreamSystemProducer(SystemStream systemStream, SystemProducer systemProducer, SystemAdmin systemAdmin, Serde<List<?>> keySerde, Serde<Map<String, Object>> messageSerde) {
+  public CoordinatorStreamSystemProducer(SystemStream systemStream, SystemProducer systemProducer, SystemAdmin systemAdmin, String jobNameWithId, Serde<List<?>> keySerde, Serde<Map<String, Object>> messageSerde) {
+    log.info("CoordinatorStreamSystemProducer [FORK] created for: " + jobNameWithId);
     this.systemStream = systemStream;
     this.systemProducer = systemProducer;
     this.systemAdmin = systemAdmin;
+    this.jobNameWithId = jobNameWithId;
     this.keySerde = keySerde;
     this.messageSerde = messageSerde;
   }
@@ -104,7 +108,8 @@ public class CoordinatorStreamSystemProducer {
     log.debug("Sending {}", message);
     try {
       String source = message.getSource();
-      byte[] key = keySerde.toBytes(Arrays.asList(message.getKeyArray()));
+      List keyList = addJobID(jobNameWithId, message.getKeyArray());
+      byte[] key = keySerde.toBytes(keyList);
       byte[] value = null;
       if (!message.isDelete()) {
         value = messageSerde.toBytes(message.getMessageMap());
@@ -132,5 +137,12 @@ public class CoordinatorStreamSystemProducer {
       send(new SetConfig(source, configPair.getKey(), configPair.getValue()));
     }
     systemProducer.flush(source);
+  }
+
+  protected static List addJobID(String jobNameWithId, Object[] keyArray) {
+    ArrayList<Object> keyList = new ArrayList<>(keyArray.length + 1);
+    keyList.add(jobNameWithId);
+    keyList.addAll(Arrays.asList(keyArray));
+    return keyList;
   }
 }

@@ -38,8 +38,10 @@ import org.apache.samza.util.Util;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.junit.Assert.assertNotNull;
 
@@ -68,9 +70,40 @@ public class MockCoordinatorStreamSystemFactory implements SystemFactory {
   public static CoordinatorStreamMessage deserializeCoordinatorStreamMessage(OutgoingMessageEnvelope msg) {
     JsonSerde<List<?>> keySerde = new JsonSerde<>();
     Object[] keyArray = keySerde.fromBytes((byte[]) msg.getKey()).toArray();
+    Object[] newKeyArray = CoordinatorStreamSystemConsumer.dropJobID(keyArray);
     JsonSerde<Map<String, Object>> msgSerde = new JsonSerde<>();
     Map<String, Object> valueMap = msgSerde.fromBytes((byte[]) msg.getMessage());
-    return new CoordinatorStreamMessage(keyArray, valueMap);
+    return new CoordinatorStreamMessage(newKeyArray, valueMap);
+  }
+
+  public static OutgoingMessageEnvelope convertOutEnv(OutgoingMessageEnvelope envelope) {
+    Object newKey = convertKey(envelope.getKey(), keyArray -> Arrays.asList(CoordinatorStreamSystemConsumer.dropJobID(keyArray)));
+    return new OutgoingMessageEnvelope(
+            envelope.getSystemStream(),
+            envelope.getKeySerializerName(),
+            envelope.getMessageSerializerName(),
+            envelope.getPartitionKey(),
+            newKey,
+            envelope.getMessage()
+    );
+  }
+
+  public static IncomingMessageEnvelope convertInEnv(String jobNameAndID, IncomingMessageEnvelope envelope) {
+    Object newKey = convertKey(envelope.getKey(), keyArray -> CoordinatorStreamSystemProducer.addJobID(jobNameAndID, keyArray));
+    return new IncomingMessageEnvelope(
+            envelope.getSystemStreamPartition(),
+            envelope.getOffset(),
+            newKey,
+            envelope.getMessage(),
+            envelope.getSize()
+    );
+  }
+
+  private static Object convertKey(Object key, Function<Object[], List> func) {
+    JsonSerde<List<?>> keySerde = new JsonSerde<>();
+    Object[] keyArray = keySerde.fromBytes((byte[]) key).toArray();
+    List newKeyList = func.apply(keyArray);
+    return keySerde.toBytes(newKeyList);
   }
 
   /**
@@ -87,15 +120,7 @@ public class MockCoordinatorStreamSystemFactory implements SystemFactory {
       return mockConsumer;
     }
 
-    String jobName = config.get("job.name");
-    String jobId = config.get("job.id");
-    if (jobName == null) {
-      throw new ConfigException("Must define job.name.");
-    }
-    if (jobId == null) {
-      jobId = "1";
-    }
-    String streamName = Util.getCoordinatorStreamName(jobName, jobId);
+    String streamName = Util.getCoordinatorStreamName(config);
     SystemStreamPartition systemStreamPartition = new SystemStreamPartition(systemName, streamName, new Partition(0));
     mockConsumer = new MockCoordinatorStreamWrappedConsumer(systemStreamPartition, config);
     return mockConsumer;
@@ -103,9 +128,8 @@ public class MockCoordinatorStreamSystemFactory implements SystemFactory {
 
   private SystemStream getCoordinatorSystemStream(Config config) {
     assertNotNull(config.get("job.coordinator.system"));
-    assertNotNull(config.get("job.name"));
-    return new SystemStream(config.get("job.coordinator.system"), Util.getCoordinatorStreamName(config.get("job.name"),
-        config.get("job.id") == null ? "1" : config.get("job.id")));
+    assertNotNull(config.get("job.coordinator.topic"));
+    return new SystemStream(config.get("job.coordinator.system"), Util.getCoordinatorStreamName(config));
   }
 
   /**
@@ -118,13 +142,15 @@ public class MockCoordinatorStreamSystemFactory implements SystemFactory {
   public MockCoordinatorStreamSystemConsumer getCoordinatorStreamSystemConsumer(Config config, MetricsRegistry registry) {
     return new MockCoordinatorStreamSystemConsumer(getCoordinatorSystemStream(config),
         getConsumer(config.get("job.coordinator.system"), config, registry),
-        getAdmin(config.get("job.coordinator.system"), config));
+        getAdmin(config.get("job.coordinator.system"), config),
+        Util.getJobNameWithId(config));
   }
 
   public MockCoordinatorStreamSystemProducer getCoordinatorStreamSystemProducer(Config config, MetricsRegistry registry) {
     return new MockCoordinatorStreamSystemProducer(getCoordinatorSystemStream(config),
         getProducer(config.get("job.coordinator.system"), config, registry),
-        getAdmin(config.get("job.coordinator.system"), config));
+        getAdmin(config.get("job.coordinator.system"), config),
+        Util.getJobNameWithId(config));
   }
 
   /**
@@ -141,8 +167,8 @@ public class MockCoordinatorStreamSystemFactory implements SystemFactory {
     private boolean isRegistered = false;
     private boolean isStarted = false;
 
-    public MockCoordinatorStreamSystemConsumer(SystemStream stream, SystemConsumer consumer, SystemAdmin admin) {
-      super(stream, consumer, admin);
+    public MockCoordinatorStreamSystemConsumer(SystemStream stream, SystemConsumer consumer, SystemAdmin admin, String jobNameWithId) {
+      super(stream, consumer, admin, jobNameWithId);
       this.stream = stream;
       this.consumer = (MockCoordinatorStreamWrappedConsumer) consumer;
     }
@@ -181,8 +207,8 @@ public class MockCoordinatorStreamSystemFactory implements SystemFactory {
   public static final class MockCoordinatorStreamSystemProducer extends CoordinatorStreamSystemProducer {
     private final MockSystemProducer producer;
 
-    public MockCoordinatorStreamSystemProducer(SystemStream stream, SystemProducer producer, SystemAdmin admin) {
-      super(stream, producer, admin);
+    public MockCoordinatorStreamSystemProducer(SystemStream stream, SystemProducer producer, SystemAdmin admin, String jobNameWithId) {
+      super(stream, producer, admin, jobNameWithId);
       this.producer = (MockSystemProducer) producer;
     }
 

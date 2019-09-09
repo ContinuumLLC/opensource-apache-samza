@@ -52,6 +52,7 @@ public class TestCoordinatorStreamWriter {
     configMap.put("systems.coordinatorStreamWriter.samza.factory", "org.apache.samza.coordinator.stream.MockCoordinatorStreamSystemFactory");
     configMap.put("job.name", "coordinator-stream-writer-test");
     configMap.put("job.coordinator.system", "coordinatorStreamWriter");
+    configMap.put("job.coordinator.topic", "coordinator_topic");
     Config config = new MapConfig(configMap);
     coordinatorStreamWriter = new CoordinatorStreamWriter(config);
     boolean exceptionHappened = false;
@@ -135,8 +136,8 @@ public class TestCoordinatorStreamWriter {
 
     //check the messages are correct
     List<OutgoingMessageEnvelope> envelopes = systemProducer.getEnvelopes();
-    OutgoingMessageEnvelope envelope0 = envelopes.get(0);
-    OutgoingMessageEnvelope envelope1 = envelopes.get(1);
+    OutgoingMessageEnvelope envelope0 = MockCoordinatorStreamSystemFactory.convertOutEnv(envelopes.get(0));
+    OutgoingMessageEnvelope envelope1 = MockCoordinatorStreamSystemFactory.convertOutEnv(envelopes.get(1));
     TypeReference<Object[]> keyRef = new TypeReference<Object[]>() {
     };
     TypeReference<Map<String, Object>> msgRef = new TypeReference<Map<String, Object>>() {

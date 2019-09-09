@@ -32,6 +32,7 @@ import org.apache.samza.serializers.model.SamzaObjectMapper;
 import org.apache.samza.system.IncomingMessageEnvelope;
 import org.apache.samza.system.SystemStreamPartition;
 import org.apache.samza.util.BlockingEnvelopeMap;
+import org.apache.samza.util.Util;
 import org.codehaus.jackson.map.ObjectMapper;
 
 /**
@@ -48,11 +49,13 @@ public class MockCoordinatorStreamWrappedConsumer extends BlockingEnvelopeMap {
 
   private final SystemStreamPartition systemStreamPartition;
   private final Config config;
+  private final String jobNameWithID;
 
   public MockCoordinatorStreamWrappedConsumer(SystemStreamPartition systemStreamPartition, Config config) {
     super();
     this.config = config;
     this.systemStreamPartition = systemStreamPartition;
+    jobNameWithID = Util.getJobNameWithId(config);
   }
 
   @Override
@@ -83,11 +86,13 @@ public class MockCoordinatorStreamWrappedConsumer extends BlockingEnvelopeMap {
           String[] changelogInfo = configPair.getKey().split(":");
           String changeLogPartition = configPair.getValue();
           SetChangelogMapping changelogMapping = new SetChangelogMapping(changelogInfo[1], changelogInfo[2], Integer.parseInt(changeLogPartition));
-          keyBytes = MAPPER.writeValueAsString(changelogMapping.getKeyArray()).getBytes("UTF-8");
+          Object[] keyArray = CoordinatorStreamSystemProducer.addJobID(jobNameWithID, changelogMapping.getKeyArray()).toArray();
+          keyBytes = MAPPER.writeValueAsString(keyArray).getBytes("UTF-8");
           messgeBytes = MAPPER.writeValueAsString(changelogMapping.getMessageMap()).getBytes("UTF-8");
         } else {
           SetConfig setConfig = new SetConfig("source", configPair.getKey(), configPair.getValue());
-          keyBytes = MAPPER.writeValueAsString(setConfig.getKeyArray()).getBytes("UTF-8");
+          Object[] keyArray = CoordinatorStreamSystemProducer.addJobID(jobNameWithID, setConfig.getKeyArray()).toArray();
+          keyBytes = MAPPER.writeValueAsString(keyArray).getBytes("UTF-8");
           messgeBytes = MAPPER.writeValueAsString(setConfig.getMessageMap()).getBytes("UTF-8");
         }
         // The ssp here is the coordinator ssp (which is always fixed) and not the task ssp.

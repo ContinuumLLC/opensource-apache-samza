@@ -196,6 +196,10 @@ object Util extends Logging {
     "__samza_coordinator_%s_%s" format (jobName.replaceAll("_", "-"), jobId.replaceAll("_", "-"))
   }
 
+  def getCoordinatorStreamName(config: Config) = {
+    config.getCoordinatorTopicName
+  }
+
   /**
    * Get a job's name and ID given a config. Job ID is defaulted to 1 if not
    * defined in the config, and job name must be defined in config.
@@ -204,6 +208,10 @@ object Util extends Logging {
    */
   def getJobNameAndId(config: Config) = {
     (config.getName.getOrElse(throw new ConfigException("Missing required config: job.name")), config.getJobId.getOrElse("1"))
+  }
+
+  def getJobNameWithId(config: Config) = {
+    config.getName.getOrElse(throw new ConfigException("Missing required config: job.name")) + "_" + config.getJobId.getOrElse("1")
   }
 
   /**
@@ -218,6 +226,7 @@ object Util extends Logging {
         JobConfig.JOB_NAME -> jobName,
         JobConfig.JOB_ID -> jobId,
         JobConfig.JOB_COORDINATOR_SYSTEM -> config.getCoordinatorSystemName,
+        JobConfig.JOB_COORDINATOR_TOPIC -> config.getCoordinatorTopicName,
         JobConfig.MONITOR_PARTITION_CHANGE -> String.valueOf(config.getMonitorPartitionChange),
         JobConfig.MONITOR_PARTITION_CHANGE_FREQUENCY_MS -> String.valueOf(config.getMonitorPartitionChangeFrequency))
     new MapConfig(map.asJava)
@@ -230,8 +239,7 @@ object Util extends Logging {
    */
   def getCoordinatorSystemStreamAndFactory(config: Config) = {
     val systemName = config.getCoordinatorSystemName
-    val (jobName, jobId) = Util.getJobNameAndId(config)
-    val streamName = Util.getCoordinatorStreamName(jobName, jobId)
+    val streamName = Util.getCoordinatorStreamName(config)
     val coordinatorSystemStream = new SystemStream(systemName, streamName)
     val systemFactoryClassName = config
       .getSystemFactory(systemName)

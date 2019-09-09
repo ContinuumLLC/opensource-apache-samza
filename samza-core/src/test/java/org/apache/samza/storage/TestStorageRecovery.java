@@ -100,6 +100,7 @@ public class TestStorageRecovery {
     map.put(String.format("stores.%s.changelog", STORE_NAME), "mockSystem." + SYSTEM_STREAM_NAME);
     map.put("task.inputs", "mockSystem.input");
     map.put("job.coordinator.system", "coordinator");
+    map.put("job.coordinator.topic", "coordinator_topic");
     map.put("systems.coordinator.samza.factory", MockCoordinatorStreamSystemFactory.class.getCanonicalName());
     map.put("task.name.grouper.factory", "org.apache.samza.container.grouper.task.GroupByContainerCountFactory");
     config = new MapConfig(map);

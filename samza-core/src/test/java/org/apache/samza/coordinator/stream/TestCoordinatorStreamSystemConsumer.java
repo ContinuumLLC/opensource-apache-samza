@@ -49,13 +49,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TestCoordinatorStreamSystemConsumer {
+
+  public static final String JOB_NAME_WITH_ID = "my-job-name_1234";
+
   @Test
   public void testCoordinatorStreamSystemConsumer() {
     Map<String, String> expectedConfig = new LinkedHashMap<String, String>();
     expectedConfig.put("job.id", "1234");
     SystemStream systemStream = new SystemStream("system", "stream");
     MockSystemConsumer systemConsumer = new MockSystemConsumer(new SystemStreamPartition(systemStream, new Partition(0)));
-    CoordinatorStreamSystemConsumer consumer = new CoordinatorStreamSystemConsumer(systemStream, systemConsumer, new SinglePartitionWithoutOffsetsSystemAdmin());
+    CoordinatorStreamSystemConsumer consumer = new CoordinatorStreamSystemConsumer(systemStream, systemConsumer, new SinglePartitionWithoutOffsetsSystemAdmin(), JOB_NAME_WITH_ID);
     assertEquals(0, systemConsumer.getRegisterCount());
     consumer.register();
     assertEquals(1, systemConsumer.getRegisterCount());
@@ -81,7 +84,7 @@ public class TestCoordinatorStreamSystemConsumer {
     expectedConfig.put("job.id", "1234");
     SystemStream systemStream = new SystemStream("system", "stream");
     MockSystemConsumer systemConsumer = new MockSystemConsumer(new SystemStreamPartition(systemStream, new Partition(0)));
-    CoordinatorStreamSystemConsumer consumer = new CoordinatorStreamSystemConsumer(systemStream, systemConsumer, new SinglePartitionWithoutOffsetsSystemAdmin());
+    CoordinatorStreamSystemConsumer consumer = new CoordinatorStreamSystemConsumer(systemStream, systemConsumer, new SinglePartitionWithoutOffsetsSystemAdmin(), JOB_NAME_WITH_ID);
     assertEquals(0, systemConsumer.getRegisterCount());
     consumer.register();
     assertEquals(1, systemConsumer.getRegisterCount());
@@ -116,7 +119,7 @@ public class TestCoordinatorStreamSystemConsumer {
     };
     when(systemConsumer.poll(anySet(), anyLong())).thenReturn(messages, Collections.<SystemStreamPartition, List<IncomingMessageEnvelope>>emptyMap());
 
-    CoordinatorStreamSystemConsumer consumer = new CoordinatorStreamSystemConsumer(systemStream, systemConsumer, new SinglePartitionWithoutOffsetsSystemAdmin());
+    CoordinatorStreamSystemConsumer consumer = new CoordinatorStreamSystemConsumer(systemStream, systemConsumer, new SinglePartitionWithoutOffsetsSystemAdmin(), JOB_NAME_WITH_ID);
 
     consumer.bootstrap();
 
@@ -167,9 +170,12 @@ public class TestCoordinatorStreamSystemConsumer {
         SetConfig setConfig1 = new SetConfig("test", "job.name", "my-job-name");
         SetConfig setConfig2 = new SetConfig("test", "job.id", "1234");
         Delete delete = new Delete("test", "job.name", SetConfig.TYPE);
-        list.add(new IncomingMessageEnvelope(systemStreamPartition, null, serialize(setConfig1.getKeyArray()), serialize(setConfig1.getMessageMap())));
-        list.add(new IncomingMessageEnvelope(systemStreamPartition, null, serialize(setConfig2.getKeyArray()), serialize(setConfig2.getMessageMap())));
-        list.add(new IncomingMessageEnvelope(systemStreamPartition, null, serialize(delete.getKeyArray()), delete.getMessageMap()));
+        list.add(MockCoordinatorStreamSystemFactory.convertInEnv(JOB_NAME_WITH_ID, new IncomingMessageEnvelope(
+                systemStreamPartition, null, serialize(setConfig1.getKeyArray()), serialize(setConfig1.getMessageMap()))));
+        list.add(MockCoordinatorStreamSystemFactory.convertInEnv(JOB_NAME_WITH_ID, new IncomingMessageEnvelope(
+                systemStreamPartition, null, serialize(setConfig2.getKeyArray()), serialize(setConfig2.getMessageMap()))));
+        list.add(MockCoordinatorStreamSystemFactory.convertInEnv(JOB_NAME_WITH_ID, new IncomingMessageEnvelope(
+                systemStreamPartition, null, serialize(delete.getKeyArray()), delete.getMessageMap())));
         map.put(systemStreamPartition, list);
       }
 
@@ -197,7 +203,7 @@ public class TestCoordinatorStreamSystemConsumer {
     try {
       byte[] key = SamzaObjectMapper.getObjectMapper().writeValueAsString(message.getKeyArray()).getBytes("UTF-8");
       byte[] value = SamzaObjectMapper.getObjectMapper().writeValueAsString(message.getMessageMap()).getBytes("UTF-8");
-      return new IncomingMessageEnvelope(ssp, null, key, value);
+      return MockCoordinatorStreamSystemFactory.convertInEnv(JOB_NAME_WITH_ID, new IncomingMessageEnvelope(ssp, null, key, value));
     } catch (Exception e) {
       return null;
     }

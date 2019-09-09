@@ -45,7 +45,7 @@ public class TestCoordinatorStreamSystemProducer {
     SystemStream systemStream = new SystemStream("system", "stream");
     MockCoordinatorSystemProducer systemProducer = new MockCoordinatorSystemProducer(source);
     MockSystemAdmin systemAdmin = new MockSystemAdmin();
-    CoordinatorStreamSystemProducer producer = new CoordinatorStreamSystemProducer(systemStream, systemProducer, systemAdmin);
+    CoordinatorStreamSystemProducer producer = new CoordinatorStreamSystemProducer(systemStream, systemProducer, systemAdmin, TestCoordinatorStreamSystemConsumer.JOB_NAME_WITH_ID);
     SetConfig setConfig1 = new SetConfig(source, "job.name", "my-job-name");
     SetConfig setConfig2 = new SetConfig(source, "job.id", "1234");
     Delete delete = new Delete(source, "job.name", SetConfig.TYPE);
@@ -62,9 +62,9 @@ public class TestCoordinatorStreamSystemProducer {
     producer.stop();
     assertTrue(systemProducer.isStopped());
     List<OutgoingMessageEnvelope> envelopes = systemProducer.getEnvelopes();
-    OutgoingMessageEnvelope envelope0 = envelopes.get(0);
-    OutgoingMessageEnvelope envelope1 = envelopes.get(1);
-    OutgoingMessageEnvelope envelope2 = envelopes.get(2);
+    OutgoingMessageEnvelope envelope0 = MockCoordinatorStreamSystemFactory.convertOutEnv(envelopes.get(0));
+    OutgoingMessageEnvelope envelope1 = MockCoordinatorStreamSystemFactory.convertOutEnv(envelopes.get(1));
+    OutgoingMessageEnvelope envelope2 = MockCoordinatorStreamSystemFactory.convertOutEnv(envelopes.get(2));
     TypeReference<Object[]> keyRef = new TypeReference<Object[]>() {
     };
     TypeReference<Map<String, Object>> msgRef = new TypeReference<Map<String, Object>>() {

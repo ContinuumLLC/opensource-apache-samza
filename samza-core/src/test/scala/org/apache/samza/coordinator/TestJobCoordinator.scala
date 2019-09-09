@@ -99,6 +99,7 @@ class TestJobCoordinator extends FlatSpec with PrivateMethodTester {
     val config = Map(
       JobConfig.JOB_NAME -> "test",
       JobConfig.JOB_COORDINATOR_SYSTEM -> "coordinator",
+      JobConfig.JOB_COORDINATOR_TOPIC -> "coordinator_topic",
       JobConfig.JOB_CONTAINER_COUNT -> "2",
       TaskConfig.INPUT_STREAMS -> "test.stream1",
       SystemConfig.SYSTEM_FACTORY.format("test") -> classOf[MockSystemFactory].getCanonicalName,
@@ -165,6 +166,7 @@ class TestJobCoordinator extends FlatSpec with PrivateMethodTester {
     val config = Map(
       JobConfig.JOB_NAME -> "test",
       JobConfig.JOB_COORDINATOR_SYSTEM -> "coordinator",
+      JobConfig.JOB_COORDINATOR_TOPIC -> "coordinator_topic",
       JobConfig.JOB_CONTAINER_COUNT -> "2",
       TaskConfig.INPUT_STREAMS -> "test.stream1",
       SystemConfig.SYSTEM_FACTORY.format("test") -> classOf[MockSystemFactory].getCanonicalName,
@@ -271,6 +273,7 @@ class TestJobCoordinator extends FlatSpec with PrivateMethodTester {
       TaskConfig.CHECKPOINT_MANAGER_FACTORY -> classOf[MockCheckpointManagerFactory].getCanonicalName,
       TaskConfig.INPUT_STREAMS -> "test.stream1",
       JobConfig.JOB_COORDINATOR_SYSTEM -> "coordinator",
+      JobConfig.JOB_COORDINATOR_TOPIC -> "coordinator_topic",
       JobConfig.JOB_NAME -> "test",
       JobConfig.STREAM_JOB_FACTORY_CLASS -> clazz.getCanonicalName,
       JobConfig.SSP_MATCHER_CLASS -> JobConfig.SSP_MATCHER_CLASS_REGEX,

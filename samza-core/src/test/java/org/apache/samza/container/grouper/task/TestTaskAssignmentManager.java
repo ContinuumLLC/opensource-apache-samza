@@ -39,6 +39,7 @@ public class TestTaskAssignmentManager {
         {
           this.put("job.name", "test-job");
           this.put("job.coordinator.system", "test-kafka");
+          this.put("job.coordinator.topic", "test-coordinator");
         }
       });
 
